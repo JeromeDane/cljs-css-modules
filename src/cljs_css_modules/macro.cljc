@@ -112,7 +112,26 @@
                 nested-style
                 type
                 params
-                style-object-value] :as item} (process-style id item)]
+                style-object-value] :as item} (process-style id item)
+        rest-args (rest garden-style)
+        sub-rules (reduce
+                    (fn [ass s]
+                      (assoc acc
+                        (first s)
+                        (create-garden-style id {:map {} :style style} s)))
+                    {}
+                    (filter vector? rest-args))
+        map (reduce
+              (fn [acc itm]
+                (let [m (second itm)]
+                  (if (map? m) (merge acc (:map m) acc))))
+              map
+              sub-rules)
+        localize (fn [styles]
+                   (clojure.core/map
+                     (fn [s]
+                       (if (vector? s) (:style ((first s) styles)) s))
+                     rest-args))]
     (case type
       :class
       {:map (assoc map
@@ -121,7 +140,7 @@
        :style
        (conj style
              (into [] (cons (:localised selector)
-                            (rest garden-style))))}
+                            (localize sub-rules))))}
 
       ;unify at-keyframe and keyframe
       :at-keyframe
@@ -136,7 +155,7 @@
         {:map (assoc map (:key selector) (:value selector))
          :style
          (conj style
-              `~(concat [at-keyframes (:localised selector)] (rest garden-style)))})
+              `~(concat [at-keyframes (:localised selector)] (localize sub-rules)))})
 
       :media
       (let [{s :style m :map} (reduce (partial create-garden-style id)
@@ -150,7 +169,9 @@
       {:map map
        :style (conj style garden-style)}
 
-      acc)))
+      acc
+      {:map map :style style})))
+
 
 (defmacro defstyle
   [style-id & [fst :as style]]
